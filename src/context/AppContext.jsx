@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import { autoSaveCandidateToSupabase, logN8nEventToSupabase, getSupabaseStatus, updateSupabaseCredentials } from '../supabaseClient';
+import { sendRealEmailViaEmailJS, getStoredEmailJSCredentials, saveEmailJSCredentials } from '../emailService';
 
 const AppContext = createContext();
 
@@ -15,7 +16,8 @@ export const AppProvider = ({ children }) => {
   const [lastAutoSaveTime, setLastAutoSaveTime] = useState(null);
   const [autoSaveNotification, setAutoSaveNotification] = useState(null);
 
-  // Email System State
+  // EmailJS & Email System State
+  const [emailJSState, setEmailJSState] = useState(() => getStoredEmailJSCredentials());
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [newEmailAlert, setNewEmailAlert] = useState(null);
   const [activeEmail, setActiveEmail] = useState(null);
@@ -126,13 +128,32 @@ export const AppProvider = ({ children }) => {
     }, 4000);
   };
 
-  // Helper to trigger email dispatch
-  const dispatchEmailMessage = (emailObj) => {
+  // Helper to trigger email dispatch (Real Gmail via EmailJS + n8n Webhook)
+  const dispatchEmailMessage = async (emailObj) => {
     setActiveEmail(emailObj);
     setDispatchedEmails(prev => [emailObj, ...prev]);
     setNewEmailAlert(emailObj);
 
-    // If custom real n8n webhook URL is set, call it
+    // 1. Send REAL email via EmailJS (to real Gmail inbox)
+    try {
+      const emailResult = await sendRealEmailViaEmailJS({
+        toName: emailObj.candidateName || currentCandidate.name,
+        toEmail: emailObj.to || currentCandidate.email,
+        role: currentCandidate.role || 'Senior React & n8n Specialist',
+        matchScore: `${emailObj.matchScore || 92}%`,
+        type: emailObj.type,
+        calendarSlot: currentCandidate.calendarSlot || 'Today 4:00 PM',
+        customMessage: emailObj.message
+      });
+
+      if (emailResult.deliveredToRealInbox) {
+        triggerAutoSaveAlert(`✓ REAL GMAIL DELIVERED to ${emailObj.to} via EmailJS!`);
+      }
+    } catch (err) {
+      console.warn('[EmailJS] Sending error:', err);
+    }
+
+    // 2. If custom real n8n webhook URL is set, call it
     const storedWebhook = localStorage.getItem('tp_n8n_webhook_url');
     if (storedWebhook) {
       fetch(storedWebhook, {
@@ -334,6 +355,12 @@ export const AppProvider = ({ children }) => {
     triggerAutoSaveAlert('✓ n8n Webhook URL saved! Live webhook relay active.');
   };
 
+  const saveEmailJSConfig = (serviceId, templateId, publicKey) => {
+    saveEmailJSCredentials(serviceId, templateId, publicKey);
+    setEmailJSState(getStoredEmailJSCredentials());
+    triggerAutoSaveAlert('✓ EmailJS configured! Live Gmail delivery active.');
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -352,6 +379,8 @@ export const AppProvider = ({ children }) => {
         newEmailAlert,
         setNewEmailAlert,
         dispatchedEmails,
+        emailJSState,
+        saveEmailJSConfig,
         n8nWebhookUrl,
         saveN8nWebhook,
         currentCandidate,

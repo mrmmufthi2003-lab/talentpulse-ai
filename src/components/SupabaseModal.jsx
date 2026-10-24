@@ -1,15 +1,24 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { SUPABASE_SQL_SCHEMA, getSupabaseStatus } from '../supabaseClient';
-import { X, Database, Copy, Check, ShieldCheck, Key, Globe, Table, Server } from 'lucide-react';
+import { getStoredEmailJSCredentials, saveEmailJSCredentials, sendRealEmailViaEmailJS } from '../emailService';
+import { X, Database, Copy, Check, ShieldCheck, Key, Globe, Table, Server, Mail, Send, Sparkles } from 'lucide-react';
 
 export const SupabaseModal = () => {
   const { showSupabaseModal, setShowSupabaseModal, saveSupabaseConfig, saveN8nWebhook, currentCandidate } = useApp();
   const [url, setUrl] = useState(() => localStorage.getItem('tp_supabase_url') || '');
   const [anonKey, setAnonKey] = useState(() => localStorage.getItem('tp_supabase_key') || '');
   const [webhookUrl, setWebhookUrl] = useState(() => localStorage.getItem('tp_n8n_webhook_url') || '');
+  
+  // EmailJS fields
+  const storedEmailJS = getStoredEmailJSCredentials();
+  const [serviceId, setServiceId] = useState(storedEmailJS.serviceId);
+  const [templateId, setTemplateId] = useState(storedEmailJS.templateId || 'template_vocoao8');
+  const [publicKey, setPublicKey] = useState(storedEmailJS.publicKey);
+  const [testEmailStatus, setTestEmailStatus] = useState(null);
+
   const [copied, setCopied] = useState(false);
-  const [activeTab, setActiveTab] = useState('settings'); // 'settings' | 'schema' | 'preview'
+  const [activeTab, setActiveTab] = useState('settings'); // 'settings' | 'emailjs' | 'schema' | 'preview'
 
   if (!showSupabaseModal) return null;
 
@@ -19,7 +28,7 @@ export const SupabaseModal = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleSave = (e) => {
+  const handleSaveSupabase = (e) => {
     e.preventDefault();
     if (url && anonKey) {
       saveSupabaseConfig(url, anonKey);
@@ -29,10 +38,37 @@ export const SupabaseModal = () => {
     }
   };
 
+  const handleSaveEmailJS = (e) => {
+    e.preventDefault();
+    saveEmailJSCredentials(serviceId, templateId, publicKey);
+    setTestEmailStatus({ type: 'success', message: '✓ EmailJS credentials saved! You can now send real emails to your Gmail.' });
+  };
+
+  const handleSendTestEmail = async () => {
+    saveEmailJSCredentials(serviceId, templateId, publicKey);
+    setTestEmailStatus({ type: 'loading', message: 'Sending real test email to Gmail...' });
+
+    const result = await sendRealEmailViaEmailJS({
+      toName: currentCandidate.name || 'Mufthi',
+      toEmail: currentCandidate.email || 'mufthi.dev@gmail.com',
+      role: 'Senior React & n8n Specialist',
+      matchScore: '92%',
+      type: 'INTERVIEW_INVITE',
+      calendarSlot: 'Today 4:00 PM'
+    });
+
+    if (result.deliveredToRealInbox) {
+      setTestEmailStatus({ type: 'success', message: `✓ Success! Check your Gmail inbox (${currentCandidate.email}) now!` });
+    } else {
+      setTestEmailStatus({ type: 'error', message: result.message || 'Failed to send. Please check your Service ID & Public Key.' });
+    }
+  };
+
   const currentStatus = getSupabaseStatus();
+  const isEmailConfigured = !!(serviceId && publicKey);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
       <div className="w-full max-w-2xl bg-[#0b0f17] border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Modal Header */}
         <div className="flex items-center justify-between p-5 border-b border-slate-800 bg-[#0d131f]">
@@ -42,12 +78,12 @@ export const SupabaseModal = () => {
             </div>
             <div>
               <h3 className="text-base font-bold text-white flex items-center gap-2">
-                Supabase PostgreSQL Live Auto-Save
+                Cloud & Email Integrations
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400">
-                  {currentStatus.isConfigured ? 'Connected' : 'Auto-Sync Active'}
+                  {currentStatus.isConfigured ? 'Supabase Connected' : 'Auto-Sync Active'}
                 </span>
               </h3>
-              <p className="text-xs text-slate-400">Database synchronization for candidates, n8n events & interview transcripts</p>
+              <p className="text-xs text-slate-400">Supabase Database, EmailJS Real Gmail & n8n Webhook Configuration</p>
             </div>
           </div>
           <button
@@ -59,20 +95,32 @@ export const SupabaseModal = () => {
         </div>
 
         {/* Tab Switcher */}
-        <div className="flex border-b border-slate-800 bg-slate-900/50 px-5 text-xs font-mono">
+        <div className="flex border-b border-slate-800 bg-slate-900/50 px-5 text-xs font-mono overflow-x-auto">
           <button
             onClick={() => setActiveTab('settings')}
-            className={`py-2.5 px-3 border-b-2 font-medium transition-colors ${
+            className={`py-2.5 px-3 border-b-2 font-medium transition-colors whitespace-nowrap ${
               activeTab === 'settings'
                 ? 'border-emerald-400 text-emerald-400 font-bold'
                 : 'border-transparent text-slate-400 hover:text-white'
             }`}
           >
-            Connection Settings
+            Supabase Database
+          </button>
+          <button
+            onClick={() => setActiveTab('emailjs')}
+            className={`py-2.5 px-3 border-b-2 font-medium transition-colors whitespace-nowrap flex items-center gap-1.5 ${
+              activeTab === 'emailjs'
+                ? 'border-cyan-400 text-cyan-400 font-bold'
+                : 'border-transparent text-slate-400 hover:text-white'
+            }`}
+          >
+            <Mail className="w-3.5 h-3.5" />
+            <span>EmailJS (Real Gmail)</span>
+            {isEmailConfigured && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>}
           </button>
           <button
             onClick={() => setActiveTab('schema')}
-            className={`py-2.5 px-3 border-b-2 font-medium transition-colors ${
+            className={`py-2.5 px-3 border-b-2 font-medium transition-colors whitespace-nowrap ${
               activeTab === 'schema'
                 ? 'border-emerald-400 text-emerald-400 font-bold'
                 : 'border-transparent text-slate-400 hover:text-white'
@@ -82,7 +130,7 @@ export const SupabaseModal = () => {
           </button>
           <button
             onClick={() => setActiveTab('preview')}
-            className={`py-2.5 px-3 border-b-2 font-medium transition-colors ${
+            className={`py-2.5 px-3 border-b-2 font-medium transition-colors whitespace-nowrap ${
               activeTab === 'preview'
                 ? 'border-emerald-400 text-emerald-400 font-bold'
                 : 'border-transparent text-slate-400 hover:text-white'
@@ -94,10 +142,11 @@ export const SupabaseModal = () => {
 
         {/* Modal Content */}
         <div className="p-6 overflow-y-auto space-y-4">
+          {/* TAB 1: Supabase Connection */}
           {activeTab === 'settings' && (
-            <form onSubmit={handleSave} className="space-y-4">
+            <form onSubmit={handleSaveSupabase} className="space-y-4">
               <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 text-xs text-slate-300 leading-relaxed">
-                <span className="font-semibold text-emerald-400">💡 Zero Setup Required:</span> TalentPulse AI automatically auto-saves all candidates, interview scores, and n8n webhooks reactively. To connect your live Supabase cloud project, paste your credentials below!
+                <span className="font-semibold text-emerald-400">✓ Supabase Cloud Live:</span> Your app is connected to project <span className="text-cyan-300 font-mono">rxupshpgieajqanjcntg</span>. Candidates and n8n events are being stored automatically!
               </div>
 
               <div>
@@ -107,7 +156,7 @@ export const SupabaseModal = () => {
                 </label>
                 <input
                   type="text"
-                  placeholder="https://your-project.supabase.co"
+                  placeholder="https://rxupshpgieajqanjcntg.supabase.co"
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
                   className="w-full px-3 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs font-mono text-slate-200 focus:outline-none focus:border-emerald-500"
@@ -131,7 +180,7 @@ export const SupabaseModal = () => {
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center gap-1.5">
                   <Server className="w-3.5 h-3.5 text-cyan-400" />
-                  Live n8n Webhook URL (Optional for Real Gmail Node)
+                  Live n8n Webhook URL (Optional for Custom n8n Instance)
                 </label>
                 <input
                   type="text"
@@ -140,9 +189,6 @@ export const SupabaseModal = () => {
                   onChange={(e) => setWebhookUrl(e.target.value)}
                   className="w-full px-3 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs font-mono text-slate-200 focus:outline-none focus:border-cyan-500"
                 />
-                <span className="text-[10px] text-slate-400 mt-1 block">
-                  Paste your n8n webhook trigger URL to dispatch real Gmail messages automatically.
-                </span>
               </div>
 
               <button
@@ -154,6 +200,116 @@ export const SupabaseModal = () => {
             </form>
           )}
 
+          {/* TAB 2: EmailJS Real Gmail Configuration */}
+          {activeTab === 'emailjs' && (
+            <div className="space-y-4">
+              <div className="p-3.5 rounded-xl bg-gradient-to-r from-cyan-950/40 to-blue-950/40 border border-cyan-500/30 text-xs text-slate-300 space-y-1.5">
+                <div className="font-bold text-cyan-300 flex items-center gap-1.5">
+                  <Mail className="w-4 h-4 text-cyan-400" />
+                  Send REAL Emails to Gmail (via EmailJS Dashboard)
+                </div>
+                <p>
+                  Connect your EmailJS account (Welcome, Mufthi) to deliver actual emails into your real Gmail inbox whenever a candidate applies or gets hired!
+                </p>
+              </div>
+
+              <form onSubmit={handleSaveEmailJS} className="space-y-3.5">
+                {/* Service ID */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-medium text-slate-300 flex items-center gap-1.5">
+                      <Server className="w-3.5 h-3.5 text-cyan-400" />
+                      1. EmailJS Service ID
+                    </label>
+                    <span className="text-[10px] text-cyan-400 font-mono">
+                      (Left menu ➔ "Email Services" tab)
+                    </span>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="service_xxxxxxx"
+                    value={serviceId}
+                    onChange={(e) => setServiceId(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs font-mono text-slate-200 focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+
+                {/* Template ID */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-medium text-slate-300 flex items-center gap-1.5">
+                      <Table className="w-3.5 h-3.5 text-cyan-400" />
+                      2. Template ID
+                    </label>
+                    <span className="text-[10px] text-emerald-400 font-mono">
+                      From your screenshot: template_vocoao8
+                    </span>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="template_vocoao8"
+                    value={templateId}
+                    onChange={(e) => setTemplateId(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs font-mono text-slate-200 focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+
+                {/* Public Key */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-medium text-slate-300 flex items-center gap-1.5">
+                      <Key className="w-3.5 h-3.5 text-cyan-400" />
+                      3. Public Key (User ID)
+                    </label>
+                    <span className="text-[10px] text-cyan-400 font-mono">
+                      (Left menu ➔ "Account" tab ➔ Public Key)
+                    </span>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Your EmailJS Public Key"
+                    value={publicKey}
+                    onChange={(e) => setPublicKey(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs font-mono text-slate-200 focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+
+                {/* Status Message */}
+                {testEmailStatus && (
+                  <div className={`p-3 rounded-xl text-xs font-mono border ${
+                    testEmailStatus.type === 'success' 
+                      ? 'bg-emerald-950/60 border-emerald-500/50 text-emerald-300' 
+                      : testEmailStatus.type === 'error'
+                      ? 'bg-red-950/60 border-red-500/50 text-red-300'
+                      : 'bg-cyan-950/60 border-cyan-500/50 text-cyan-300'
+                  }`}>
+                    {testEmailStatus.message}
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="grid grid-cols-2 gap-3 pt-1">
+                  <button
+                    type="submit"
+                    className="py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition-colors"
+                  >
+                    Save EmailJS Keys
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSendTestEmail}
+                    className="py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-cyan-500/20 transition-all"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Send Test Email to Gmail</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* TAB 3: SQL Table Schema */}
           {activeTab === 'schema' && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
@@ -176,6 +332,7 @@ export const SupabaseModal = () => {
             </div>
           )}
 
+          {/* TAB 4: Live Table Preview */}
           {activeTab === 'preview' && (
             <div className="space-y-3 font-mono text-xs">
               <div className="flex items-center justify-between text-slate-400 pb-1 border-b border-slate-800">
