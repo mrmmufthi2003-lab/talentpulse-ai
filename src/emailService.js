@@ -1,10 +1,22 @@
 // EmailJS Integration for sending REAL emails to candidate's Gmail inbox
 export const getStoredEmailJSCredentials = () => {
+  const envServiceId = import.meta.env.VITE_EMAILJS_SERVICE_ID || '';
+  const envTemplateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID || '';
+  const envPublicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY || '';
+
+  const localServiceId = localStorage.getItem('tp_emailjs_service_id') || '';
+  const localTemplateId = localStorage.getItem('tp_emailjs_template_id') || '';
+  const localPublicKey = localStorage.getItem('tp_emailjs_public_key') || '';
+
+  const serviceId = localServiceId || envServiceId;
+  const templateId = localTemplateId || envTemplateId || 'template_vocoao8';
+  const publicKey = localPublicKey || envPublicKey;
+
   return {
-    serviceId: localStorage.getItem('tp_emailjs_service_id') || '',
-    templateId: localStorage.getItem('tp_emailjs_template_id') || 'template_vocoao8', // From user's EmailJS dashboard
-    publicKey: localStorage.getItem('tp_emailjs_public_key') || '',
-    isConfigured: !!(localStorage.getItem('tp_emailjs_service_id') && localStorage.getItem('tp_emailjs_public_key'))
+    serviceId,
+    templateId,
+    publicKey,
+    isConfigured: !!(serviceId && publicKey)
   };
 };
 
