@@ -15,6 +15,13 @@ export const AppProvider = ({ children }) => {
   const [lastAutoSaveTime, setLastAutoSaveTime] = useState(null);
   const [autoSaveNotification, setAutoSaveNotification] = useState(null);
 
+  // Email System State
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [newEmailAlert, setNewEmailAlert] = useState(null);
+  const [activeEmail, setActiveEmail] = useState(null);
+  const [dispatchedEmails, setDispatchedEmails] = useState([]);
+  const [n8nWebhookUrl, setN8nWebhookUrl] = useState(() => localStorage.getItem('tp_n8n_webhook_url') || '');
+
   // Active applicant being processed
   const [currentCandidate, setCurrentCandidate] = useState({
     id: 'mufthi-cand-1',
@@ -119,6 +126,23 @@ export const AppProvider = ({ children }) => {
     }, 4000);
   };
 
+  // Helper to trigger email dispatch
+  const dispatchEmailMessage = (emailObj) => {
+    setActiveEmail(emailObj);
+    setDispatchedEmails(prev => [emailObj, ...prev]);
+    setNewEmailAlert(emailObj);
+
+    // If custom real n8n webhook URL is set, call it
+    const storedWebhook = localStorage.getItem('tp_n8n_webhook_url');
+    if (storedWebhook) {
+      fetch(storedWebhook, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(emailObj)
+      }).catch(err => console.warn('n8n remote webhook error:', err));
+    }
+  };
+
   // Perform AI 2-Sec Screening
   const runAiScreening = async (formData) => {
     setIsScanning(true);
@@ -134,15 +158,17 @@ export const AppProvider = ({ children }) => {
       });
     }, 350);
 
-    // 1.8s - 2.0s latency simulation matching the visual spec
     setTimeout(async () => {
       clearInterval(stepInterval);
       setScanProgress(100);
 
+      const candidateName = formData?.name || currentCandidate.name;
+      const candidateEmail = formData?.email || currentCandidate.email;
+
       const updated = {
         ...currentCandidate,
-        name: formData?.name || currentCandidate.name,
-        email: formData?.email || currentCandidate.email,
+        name: candidateName,
+        email: candidateEmail,
         github: formData?.github || currentCandidate.github,
         resumeFilename: formData?.resumeFilename || currentCandidate.resumeFilename,
         matchScore: 92,
@@ -152,7 +178,7 @@ export const AppProvider = ({ children }) => {
       setCurrentCandidate(updated);
       setIsScanning(false);
 
-      // Auto save to Supabase
+      // 1. Auto save to Supabase
       const saveRes = await autoSaveCandidateToSupabase(updated);
       await logN8nEventToSupabase('AI_SCREENING_COMPLETED', {
         candidate: updated.email,
@@ -165,13 +191,26 @@ export const AppProvider = ({ children }) => {
         : '✓ Auto-Saved to Supabase Reactive Store (Ready for Cloud Sync)'
       );
 
-      // Add n8n telemetry log
+      // 2. Dispatch simulated / real email to candidate
+      const emailInvite = {
+        id: 'email-' + Date.now(),
+        type: 'INTERVIEW_INVITE',
+        to: candidateEmail,
+        candidateName,
+        subject: `TalentPulse AI: Congratulations ${candidateName}! 92% Match Score for Senior React & n8n Specialist`,
+        message: `Your resume and GitHub telemetry were scanned in 1.8s by our autonomous AI Agent. You scored an exceptional 92% match (Top 1% of 1,000 applicants). An autonomous interview invitation has been generated. Please select your pre-cleared interview slot below:`,
+        matchScore: 92,
+        timestamp: new Date().toLocaleTimeString()
+      };
+      dispatchEmailMessage(emailInvite);
+
+      // 3. Add n8n telemetry log
       setN8nLogs(prev => [
         {
           id: 'n8n-scan-' + Date.now(),
           node: '#410 Active',
           title: 'n8n Webhook Triggered Automatically!',
-          desc: `Automated interview invitation dispatched to ${updated.email} with integrated Google Calendar sync.`,
+          desc: `Automated interview invitation dispatched to ${candidateEmail} with integrated Google Calendar sync.`,
           timestamp: 'Just now',
           active: true
         },
@@ -224,10 +263,9 @@ export const AppProvider = ({ children }) => {
 
   // Recruiter One-Click Hire & Dispatch Offer Letter via n8n
   const hireCandidate = async (candidateId) => {
-    // Fire celebratory confetti!
     confetti({
-      particleCount: 120,
-      spread: 70,
+      particleCount: 130,
+      spread: 75,
       origin: { y: 0.6 }
     });
 
@@ -254,6 +292,18 @@ export const AppProvider = ({ children }) => {
       channels: ['Gmail API', 'Telegram Bot', 'DocuSign Webhook']
     });
 
+    // Dispatch Official Offer Letter Email
+    const offerEmail = {
+      id: 'offer-email-' + Date.now(),
+      type: 'OFFER_LETTER',
+      to: updated.email,
+      candidateName: updated.name,
+      subject: `Official Offer Letter: Senior React & n8n Specialist - TechCorp Labs`,
+      message: `We are thrilled to offer you the position of Senior React & n8n Specialist at TechCorp Labs! Based on your 92% autonomous assessment score and stellar performance on n8n webhook error handling, our executive team has dispatched your official offer letter package.`,
+      timestamp: new Date().toLocaleTimeString()
+    };
+    dispatchEmailMessage(offerEmail);
+
     setN8nLogs(prev => [
       {
         id: 'n8n-hire-' + Date.now(),
@@ -269,7 +319,6 @@ export const AppProvider = ({ children }) => {
     triggerAutoSaveAlert(`✓ HIRED! Offer letter dispatched via n8n & logged to Supabase.`);
   };
 
-  // Update Supabase Settings
   const saveSupabaseConfig = (url, key) => {
     const success = updateSupabaseCredentials(url, key);
     if (success) {
@@ -277,6 +326,12 @@ export const AppProvider = ({ children }) => {
       triggerAutoSaveAlert('✓ Supabase credentials configured! Cloud Sync active.');
       setShowSupabaseModal(false);
     }
+  };
+
+  const saveN8nWebhook = (url) => {
+    setN8nWebhookUrl(url);
+    localStorage.setItem('tp_n8n_webhook_url', url);
+    triggerAutoSaveAlert('✓ n8n Webhook URL saved! Live webhook relay active.');
   };
 
   return (
@@ -290,6 +345,15 @@ export const AppProvider = ({ children }) => {
         setShowComparison,
         showSupabaseModal,
         setShowSupabaseModal,
+        showEmailModal,
+        setShowEmailModal,
+        activeEmail,
+        setActiveEmail,
+        newEmailAlert,
+        setNewEmailAlert,
+        dispatchedEmails,
+        n8nWebhookUrl,
+        saveN8nWebhook,
         currentCandidate,
         setCurrentCandidate,
         candidatesList,

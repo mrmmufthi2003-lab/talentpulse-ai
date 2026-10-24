@@ -8,6 +8,7 @@ import { HRHubScreen } from './components/HRHubScreen';
 import { BottomNav } from './components/BottomNav';
 import { ComparisonModal } from './components/ComparisonModal';
 import { SupabaseModal } from './components/SupabaseModal';
+import { EmailModal } from './components/EmailModal';
 import { 
   Briefcase, 
   Target, 
@@ -16,11 +17,22 @@ import {
   Zap, 
   CheckCircle2, 
   ArrowRight,
-  Terminal
+  Terminal,
+  Mail,
+  X
 } from 'lucide-react';
 
 export default function App() {
-  const { activeTab, setActiveTab, viewMode, n8nLogs } = useApp();
+  const { 
+    activeTab, 
+    setActiveTab, 
+    viewMode, 
+    n8nLogs, 
+    newEmailAlert, 
+    setNewEmailAlert, 
+    setShowEmailModal,
+    setActiveEmail
+  } = useApp();
 
   const steps = [
     { id: 'apply', step: '01', title: 'Candidate Apply', desc: 'Dossier & AI Screening', icon: Briefcase },
@@ -30,7 +42,7 @@ export default function App() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#070a0f] text-slate-100 flex flex-col font-sans selection:bg-cyan-500 selection:text-black">
+    <div className="min-h-screen bg-[#070a0f] text-slate-100 flex flex-col font-sans selection:bg-cyan-500 selection:text-black relative">
       {/* Top Navbar */}
       <Header />
 
@@ -128,8 +140,8 @@ export default function App() {
               <span className="text-emerald-400 font-bold">100% Autonomous Synchronized Architecture</span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 pb-6">
-              <div className="h-[780px] rounded-[28px] p-2 bg-gradient-to-b from-slate-700/60 to-slate-900/80 border border-slate-700/80 shadow-2xl flex flex-col">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 pb-6">
+              <div className="h-[800px] rounded-[28px] p-2 bg-gradient-to-b from-slate-700/60 to-slate-900/80 border border-slate-700/80 shadow-2xl flex flex-col">
                 <div className="flex-1 rounded-[22px] overflow-hidden flex flex-col bg-[#0b0f17]">
                   <div className="flex-1 overflow-hidden">
                     <ApplyScreen />
@@ -138,7 +150,7 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="h-[780px] rounded-[28px] p-2 bg-gradient-to-b from-slate-700/60 to-slate-900/80 border border-slate-700/80 shadow-2xl flex flex-col">
+              <div className="h-[800px] rounded-[28px] p-2 bg-gradient-to-b from-slate-700/60 to-slate-900/80 border border-slate-700/80 shadow-2xl flex flex-col">
                 <div className="flex-1 rounded-[22px] overflow-hidden flex flex-col bg-[#0b0f17]">
                   <div className="flex-1 overflow-hidden">
                     <MatchScoreScreen />
@@ -147,7 +159,7 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="h-[780px] rounded-[28px] p-2 bg-gradient-to-b from-slate-700/60 to-slate-900/80 border border-slate-700/80 shadow-2xl flex flex-col">
+              <div className="h-[800px] rounded-[28px] p-2 bg-gradient-to-b from-slate-700/60 to-slate-900/80 border border-slate-700/80 shadow-2xl flex flex-col">
                 <div className="flex-1 rounded-[22px] overflow-hidden flex flex-col bg-[#0b0f17]">
                   <div className="flex-1 overflow-hidden">
                     <LiveAgentScreen />
@@ -156,7 +168,7 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="h-[780px] rounded-[28px] p-2 bg-gradient-to-b from-slate-700/60 to-slate-900/80 border border-slate-700/80 shadow-2xl flex flex-col">
+              <div className="h-[800px] rounded-[28px] p-2 bg-gradient-to-b from-slate-700/60 to-slate-900/80 border border-slate-700/80 shadow-2xl flex flex-col">
                 <div className="flex-1 rounded-[22px] overflow-hidden flex flex-col bg-[#0b0f17]">
                   <div className="flex-1 overflow-hidden">
                     <HRHubScreen />
@@ -188,9 +200,43 @@ export default function App() {
         </div>
       </main>
 
+      {/* Floating Incoming Email Notification Pill */}
+      {newEmailAlert && (
+        <div className="fixed top-20 right-6 z-50 animate-bounce">
+          <div className="flex items-center space-x-3 p-3.5 rounded-2xl bg-[#0f172a] border-2 border-cyan-400 text-slate-100 shadow-2xl shadow-cyan-500/30">
+            <div className="p-2 rounded-xl bg-red-500/20 text-red-400 border border-red-500/40">
+              <Mail className="w-5 h-5 text-red-400" />
+            </div>
+            <div 
+              onClick={() => {
+                setActiveEmail(newEmailAlert);
+                setShowEmailModal(true);
+                setNewEmailAlert(null);
+              }}
+              className="cursor-pointer"
+            >
+              <div className="text-xs font-bold text-cyan-300 flex items-center gap-1.5">
+                <span>📩 New Email Sent to {newEmailAlert.to}!</span>
+                <span className="text-[10px] font-mono text-emerald-400 font-bold bg-emerald-500/15 px-1.5 py-0.2 rounded">Click to View</span>
+              </div>
+              <div className="text-[11px] text-slate-300 truncate max-w-xs">
+                {newEmailAlert.subject}
+              </div>
+            </div>
+            <button 
+              onClick={() => setNewEmailAlert(null)}
+              className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Modals */}
       <ComparisonModal />
       <SupabaseModal />
+      <EmailModal />
     </div>
   );
 }

@@ -4,9 +4,10 @@ import { SUPABASE_SQL_SCHEMA, getSupabaseStatus } from '../supabaseClient';
 import { X, Database, Copy, Check, ShieldCheck, Key, Globe, Table, Server } from 'lucide-react';
 
 export const SupabaseModal = () => {
-  const { showSupabaseModal, setShowSupabaseModal, saveSupabaseConfig, currentCandidate } = useApp();
+  const { showSupabaseModal, setShowSupabaseModal, saveSupabaseConfig, saveN8nWebhook, currentCandidate } = useApp();
   const [url, setUrl] = useState(() => localStorage.getItem('tp_supabase_url') || '');
   const [anonKey, setAnonKey] = useState(() => localStorage.getItem('tp_supabase_key') || '');
+  const [webhookUrl, setWebhookUrl] = useState(() => localStorage.getItem('tp_n8n_webhook_url') || '');
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState('settings'); // 'settings' | 'schema' | 'preview'
 
@@ -20,7 +21,12 @@ export const SupabaseModal = () => {
 
   const handleSave = (e) => {
     e.preventDefault();
-    saveSupabaseConfig(url, anonKey);
+    if (url && anonKey) {
+      saveSupabaseConfig(url, anonKey);
+    }
+    if (webhookUrl && saveN8nWebhook) {
+      saveN8nWebhook(webhookUrl);
+    }
   };
 
   const currentStatus = getSupabaseStatus();
@@ -122,11 +128,28 @@ export const SupabaseModal = () => {
                 />
               </div>
 
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center gap-1.5">
+                  <Server className="w-3.5 h-3.5 text-cyan-400" />
+                  Live n8n Webhook URL (Optional for Real Gmail Node)
+                </label>
+                <input
+                  type="text"
+                  placeholder="https://your-n8n.cloud/webhook/..."
+                  value={webhookUrl}
+                  onChange={(e) => setWebhookUrl(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs font-mono text-slate-200 focus:outline-none focus:border-cyan-500"
+                />
+                <span className="text-[10px] text-slate-400 mt-1 block">
+                  Paste your n8n webhook trigger URL to dispatch real Gmail messages automatically.
+                </span>
+              </div>
+
               <button
                 type="submit"
                 className="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-lg shadow-emerald-500/20 transition-all"
               >
-                Save Supabase Credentials & Activate Cloud Sync
+                Save Supabase & n8n Settings
               </button>
             </form>
           )}
